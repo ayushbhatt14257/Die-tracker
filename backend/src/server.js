@@ -15,9 +15,15 @@ const { startAlertCron } = require('./services/alertService');
 const app = express();
 app.set('trust proxy', 1);
 
+// Serve static files FIRST — before CORS, before everything
+const frontendDist = path.resolve(process.cwd(), 'frontend', 'dist');
+app.use(express.static(frontendDist));
+
+// Security middleware
 app.use(helmet());
 app.use(mongoSanitize());
 
+// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -32,6 +38,7 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
+// CORS — only for API routes
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
@@ -46,25 +53,29 @@ app.use(cors({
   credentials: true,
 }));
 
+// Body parsing
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
+// Logging
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 
+// Health check
 app.get('/health', (req, res) => res.json({ success: true, message: 'Die Tracker API running', env: process.env.NODE_ENV }));
 
+// API routes
 app.use('/api', routes);
 
-// Serve React frontend
-const frontendDist = path.resolve(process.cwd(), 'frontend', 'dist');
-app.use(express.static(frontendDist));
+// React catch-all
 app.get('*', (req, res) => {
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
+// Error handling
 app.use(notFound);
 app.use(errorHandler);
 
+// Start server
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
