@@ -1,0 +1,14 @@
+{
+  "name": "die-tracker",
+  "version": "1.0.0",
+  "description": "Real-time die/mould production pipeline tracker for a mobile cover manufacturing plant.",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
+    "start": "node backend/src/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
