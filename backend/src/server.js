@@ -13,6 +13,8 @@ const routes = require('./routes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { startAlertCron } = require('./services/alertService');
 
+console.log('dist exists:', fs.existsSync(path.join(process.cwd(), 'frontend', 'dist', 'index.html')));
+
 const app = express();
 app.set('trust proxy', 1);
 
