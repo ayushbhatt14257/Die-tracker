@@ -14,8 +14,7 @@ const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { startAlertCron } = require('./services/alertService');
 
 
-console.log('CWD:', process.cwd());
-console.log('__dirname:', __dirname);
+console.log('dist exists:', fs.existsSync(path.join(process.cwd(), 'frontend', 'dist', 'index.html')));
 
 const app = express();
 app.set('trust proxy', 1);
