@@ -13,6 +13,10 @@ const routes = require('./routes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { startAlertCron } = require('./services/alertService');
 
+
+console.log('CWD:', process.cwd());
+console.log('__dirname:', __dirname);
+
 const app = express();
 app.set('trust proxy', 1);
 // ── Security middleware ─────────────────────────────────
