@@ -8,6 +8,7 @@ import CreateDie from './pages/CreateDie';
 import MyQueue from './pages/MyQueue';
 import Moulding from './pages/Moulding';
 import Admin from './pages/Admin';
+import History from './pages/History';
 
 // Redirect unauthorized roles to their correct home page
 const getHomeForRole = (role) => {
@@ -46,6 +47,9 @@ const AppRoutes = () => (
     } />
     <Route path="/moulding" element={
       <ProtectedRoute roles={['owner', 'admin', 'toolroom_head', 'gr1_receiver']}><Moulding /></ProtectedRoute>
+    } />
+    <Route path="/history" element={
+      <ProtectedRoute roles={['owner', 'admin', 'designer', 'programmer', 'vmc_operator', 'wirecut_operator', 'toolroom_head', 'gr1_receiver']}><History /></ProtectedRoute>
     } />
     <Route path="/admin" element={
       <ProtectedRoute roles={['owner', 'admin']}><Admin /></ProtectedRoute>

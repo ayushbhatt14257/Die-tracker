@@ -10,6 +10,18 @@ const PART_OPTIONS = [
   { name: 'Insert', desc: 'Optional — only for some moulds' },
 ];
 
+// Auto-format: uppercase + underscores only
+const formatModelName = (value) => {
+  return value
+    .toUpperCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Z0-9_]/g, '');
+};
+
+const isValidModelName = (value) => {
+  return /^[A-Z0-9]+(_[A-Z0-9]+)*$/.test(value);
+};
+
 const CreateDie = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -22,9 +34,14 @@ const CreateDie = () => {
     notes: '',
   });
 
+  const handleModelNameChange = (e) => {
+    const formatted = formatModelName(e.target.value);
+    setForm(f => ({ ...f, modelName: formatted }));
+  };
+
   const togglePart = (name) => {
     const required = ['Pocket', 'Cavity'];
-    if (required.includes(name)) return; // can't deselect required
+    if (required.includes(name)) return;
     setForm(f => ({
       ...f,
       parts: f.parts.includes(name) ? f.parts.filter(p => p !== name) : [...f.parts, name],
@@ -35,6 +52,9 @@ const CreateDie = () => {
     e.preventDefault();
     if (!form.modelName || !form.designOption || !form.blockType)
       return toast.error('Please fill all required fields');
+
+    if (!isValidModelName(form.modelName))
+      return toast.error('Model name must be UPPERCASE with underscores only. Example: 22_NOTHING_PHONE_4A_MAG_CASE');
 
     setLoading(true);
     try {
@@ -52,6 +72,8 @@ const CreateDie = () => {
     }
   };
 
+  const modelNameValid = form.modelName === '' || isValidModelName(form.modelName);
+
   return (
     <div className="max-w-lg mx-auto">
       <h1 className="text-lg font-bold text-gray-900 mb-4">Create New Die</h1>
@@ -62,18 +84,25 @@ const CreateDie = () => {
           <div>
             <label className="label">Model name <span className="text-red-500">*</span></label>
             <input
-              className="input"
-              placeholder="e.g. OnePlus Nord 6 5G"
+              className={`input font-mono ${!modelNameValid ? 'border-red-400 focus:ring-red-400' : ''}`}
+              placeholder="e.g. 22_NOTHING_PHONE_4A_MAG_CASE"
               value={form.modelName}
-              onChange={e => setForm(f => ({ ...f, modelName: e.target.value }))}
+              onChange={handleModelNameChange}
             />
+            {!modelNameValid && (
+              <p className="text-xs text-red-500 mt-1">Must be UPPERCASE with underscores. Example: 22_NOTHING_PHONE_4A_MAG_CASE</p>
+            )}
+            {form.modelName && modelNameValid && (
+              <p className="text-xs text-green-600 mt-1">✓ Valid format</p>
+            )}
+            <p className="text-xs text-gray-400 mt-1">Spaces auto-convert to underscores. Only letters, numbers and underscores allowed.</p>
           </div>
 
           <div>
             <label className="label">Design option <span className="text-red-500">*</span></label>
             <input
               className="input"
-              placeholder="e.g. Mag Case"
+              placeholder="e.g. MAG_CASE"
               value={form.designOption}
               onChange={e => setForm(f => ({ ...f, designOption: e.target.value }))}
             />
@@ -83,7 +112,7 @@ const CreateDie = () => {
             <label className="label">Block type <span className="text-red-500">*</span></label>
             <input
               className="input"
-              placeholder="e.g. IP Block"
+              placeholder="e.g. H-H"
               value={form.blockType}
               onChange={e => setForm(f => ({ ...f, blockType: e.target.value }))}
             />
@@ -146,7 +175,11 @@ const CreateDie = () => {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary w-full py-3" disabled={loading}>
+          <button
+            type="submit"
+            className="btn btn-primary w-full py-3"
+            disabled={loading || !modelNameValid || !form.modelName}
+          >
             <Plus className="w-4 h-4" />
             {loading ? 'Creating…' : `Create Die — ${form.parts.length} parts`}
           </button>

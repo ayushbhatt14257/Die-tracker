@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, ClipboardList, Factory, Settings, LogOut, Code2, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Factory, Settings, LogOut, Code2, PlusCircle, History } from 'lucide-react';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['owner', 'admin'] },
   { to: '/create', icon: PlusCircle, label: 'Create Die', roles: ['designer', 'admin', 'owner'] },
   { to: '/my-queue', icon: ClipboardList, label: 'My Queue', roles: ['designer', 'programmer', 'vmc_operator', 'wirecut_operator', 'toolroom_head'] },
   { to: '/moulding', icon: Factory, label: 'Moulding', roles: ['owner', 'admin', 'toolroom_head', 'gr1_receiver'] },
+  { to: '/history', icon: History, label: 'History', roles: ['owner', 'admin', 'designer', 'programmer', 'vmc_operator', 'wirecut_operator', 'toolroom_head', 'gr1_receiver'] },
   { to: '/admin', icon: Settings, label: 'Admin', roles: ['owner', 'admin'] },
 ];
 

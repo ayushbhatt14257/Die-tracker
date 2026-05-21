@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://die-tracker-9474.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL || '  http://localhost:5000/api',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -34,6 +34,8 @@ export const dieAPI = {
   getOne: (id) => api.get(`/dies/${id}`),
   getStats: () => api.get('/dies/stats'),
   getMoulding: () => api.get('/dies/moulding'),
+  getHistory: (params) => api.get('/dies/history', { params }),
+  getMyHistory: (params) => api.get('/dies/my-history', { params }),
   create: (data) => api.post('/dies', data),
   advancePart: (dieId, partId, data) => api.post(`/dies/${dieId}/parts/${partId}/advance`, data),
   completeToolroom: (dieId, partId) => api.post(`/dies/${dieId}/parts/${partId}/complete-toolroom`),

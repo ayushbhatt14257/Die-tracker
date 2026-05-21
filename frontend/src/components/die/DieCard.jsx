@@ -15,6 +15,7 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
 
   const canAct = operatorView || isOwner;
   const isAtVMC = part.currentStage === 3;
+  const isVMCOperator = user?.role === 'vmc_operator';
 
   const handleAdvance = async () => {
     setLoading(true);
@@ -61,8 +62,7 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
     if (part.currentStage === 1) return 'Mark Design Complete → Programming Queue';
     if (part.currentStage === 2) return 'Mark Received → Start Programming (36h clock starts)';
     if (part.currentStage === 3) {
-      if (!part.canMarkVmcDone)
-        return `Min VMC time not reached (${fmtHours(Math.max(0, (part.vmcMinHours || 14) - part.stageElapsedHours))} left)`;
+      if (!part.canMarkVmcDone) return 'Mark VMC Complete → Send to Wirecut (min time not reached)';
       return 'Mark VMC Complete → Send to Wirecut';
     }
     if (part.currentStage === 4) return 'Mark Wirecut Complete → Send to Tool Room';
@@ -94,8 +94,8 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
           )}
         </div>
         <div className="flex items-center gap-3 text-xs text-gray-500">
-          {/* Change 4: Hide timer on VMC stage */}
-          {part.clockStartedAt && !part.isCompleted && !isAtVMC && (
+          {/* Hide timer for VMC operator at VMC stage */}
+          {part.clockStartedAt && !part.isCompleted && !(isAtVMC && isVMCOperator) && (
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {fmtHours(part.elapsedHours)} / 36h
@@ -107,7 +107,6 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
         </div>
       </div>
 
-      {/* 6-stage bar — pass dieStatus so GR1 segment renders correctly */}
       <StageBar
         currentStage={part.currentStage}
         status={part.status}
@@ -122,10 +121,11 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
           {part.assignedMachine && (
             <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{part.assignedMachine}</span>
           )}
-          {!isAtVMC && part.elapsedHours > 0 && (
+          {/* Hide stage elapsed and ETA for VMC operators at VMC stage */}
+          {!(isAtVMC && isVMCOperator) && part.elapsedHours > 0 && (
             <span>Stage: {fmtHours(part.stageElapsedHours)}</span>
           )}
-          {!isAtVMC && part.eta && (
+          {!(isAtVMC && isVMCOperator) && part.eta && (
             <span className="text-blue-600">ETA: {new Date(part.eta).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short' })}</span>
           )}
         </div>
@@ -167,10 +167,18 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
             </button>
           )}
 
-          {part.currentStage === 3 && !part.canMarkVmcDone && (
+          {/* Hide VMC time remaining from VMC operators */}
+          {part.currentStage === 3 && !part.canMarkVmcDone && !isVMCOperator && (
             <div className="text-xs text-center text-amber-700 bg-amber-50 rounded-lg py-1.5 px-2">
               Minimum 14h VMC time not reached.{' '}
               {fmtHours(Math.max(0, (part.vmcMinHours || 14) - part.stageElapsedHours))} remaining.
+            </div>
+          )}
+
+          {/* For VMC operator: just show that min time not reached without the countdown */}
+          {part.currentStage === 3 && !part.canMarkVmcDone && isVMCOperator && (
+            <div className="text-xs text-center text-amber-700 bg-amber-50 rounded-lg py-1.5 px-2">
+              Minimum machining time not yet reached.
             </div>
           )}
 
@@ -248,11 +256,9 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
     } finally { setReceivingGR1(false); }
   };
 
-  // Tool room can send when all parts done and die is still active
   const canSendToMoulding = allPartsComplete && die.status === 'active' &&
     (user?.role === 'toolroom_head' || isOwner);
 
-  // GR1 can receive when in_transit
   const canReceiveGR1 = die.status === 'in_transit' &&
     (user?.role === 'gr1_receiver' || isOwner);
 
@@ -291,7 +297,6 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
             <PartRow key={part._id} die={die} part={part} onRefresh={onRefresh} operatorView={operatorView} />
           ))}
 
-          {/* Send to GR1 — tool room */}
           {canSendToMoulding && (
             <div className="mt-3 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
               <p className="text-sm font-semibold text-green-800 mb-1">All parts complete at Tool Room!</p>
@@ -307,7 +312,6 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
             </div>
           )}
 
-          {/* In transit banner — for non-GR1-receiver viewing */}
           {die.status === 'in_transit' && !canReceiveGR1 && (
             <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
               <p className="text-sm font-semibold text-orange-800">🚚 In Transit to GR1</p>
@@ -318,7 +322,6 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
             </div>
           )}
 
-          {/* Mark received at GR1 — for gr1_receiver/owner when in_transit */}
           {canReceiveGR1 && (
             <div className="mt-3 bg-orange-50 border border-orange-300 rounded-xl p-4 text-center">
               <p className="text-sm font-semibold text-orange-800 mb-1">🚚 Die Arrived at GR1</p>
@@ -336,7 +339,6 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
             </div>
           )}
 
-          {/* Completed at GR1 */}
           {die.status === 'in_moulding' && (
             <div className="mt-3 bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
               <p className="text-sm font-semibold text-purple-800">✅ Received at GR1 Moulding</p>
