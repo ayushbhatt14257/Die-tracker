@@ -363,7 +363,90 @@ const getStats = async (req, res) => {
   }
 };
 
+
+// GET /api/dies/history — completed dies for history page
+const getHistory = async (req, res) => {
+  try {
+    const { search = '', startDate, endDate, page = 1, limit = 50 } = req.query;
+    const query = { status: 'in_moulding' };
+
+    if (search) {
+      query.$or = [
+        { modelName: { $regex: search, $options: 'i' } },
+        { dieId: { $regex: search, $options: 'i' } },
+      ];
+    }
+    if (startDate || endDate) {
+      query.receivedAtGR1At = {};
+      if (startDate) query.receivedAtGR1At.$gte = new Date(startDate);
+      if (endDate) query.receivedAtGR1At.$lte = new Date(endDate);
+    }
+
+    const total = await Die.countDocuments(query);
+    const dies = await Die.find(query)
+      .sort({ receivedAtGR1At: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    return sendSuccess(res, 'History fetched', dies.map(d => d.toObject()), {
+      total, page: Number(page), pages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+};
+
+// GET /api/dies/my-history — dies this operator completed their stage on
+const getMyHistory = async (req, res) => {
+  try {
+    const { role, _id: userId } = req.user;
+    const { page = 1, limit = 50 } = req.query;
+
+    const stageMap = {
+      designer: 1,
+      programmer: 2,
+      vmc_operator: 3,
+      wirecut_operator: 4,
+      toolroom_head: 5,
+    };
+
+    const myStage = stageMap[role];
+    if (!myStage) return sendSuccess(res, 'No history for this role', []);
+
+    // Find dies where this user completed their stage (part has moved past myStage)
+    const dies = await Die.find({
+      'parts.stageLog': {
+        $elemMatch: {
+          stage: myStage,
+          action: 'completed',
+          performedBy: userId,
+        },
+      },
+    })
+      .sort({ updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    // Filter to only show dies where parts have moved PAST their stage
+    const historyDies = dies.filter(die =>
+      die.parts.some(part =>
+        part.stageLog.some(log =>
+          log.stage === myStage &&
+          log.action === 'completed' &&
+          log.performedBy?.toString() === userId.toString()
+        ) && (part.currentStage > myStage || part.isCompleted)
+      )
+    );
+
+    const holidays = await require('../models/Holiday').find({}).lean();
+    return sendSuccess(res, 'My history fetched', historyDies.map(d => enrichDie(d, holidays)));
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+};
+
 module.exports = {
   getDies, getDie, createDie, advancePart, completePartToolroom,
-  sendToMoulding, receiveAtGR1, reportIssue, resolveIssue, getMouldingDies, getStats,
+  sendToMoulding, receiveAtGR1, reportIssue, resolveIssue,
+  getMouldingDies, getStats, getHistory, getMyHistory,
 };

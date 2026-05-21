@@ -3,6 +3,7 @@ const { login, loginValidation, getMe } = require('../controllers/authController
 const {
   getDies, getDie, createDie, advancePart, completePartToolroom,
   sendToMoulding, receiveAtGR1, reportIssue, resolveIssue, getMouldingDies, getStats,
+  getHistory, getMyHistory,
 } = require('../controllers/dieController');
 const {
   getUsers, createUser, updateUser, getMonthlyReport,
@@ -20,6 +21,8 @@ router.get('/auth/me', protect, getMe);
 // ── DIES ─────────────────────────────────────────────────
 router.get('/dies/stats', protect, getStats);
 router.get('/dies/moulding', protect, getMouldingDies);
+router.get('/dies/history', protect, getHistory);
+router.get('/dies/my-history', protect, getMyHistory);
 router.get('/dies', protect, getDies);
 router.get('/dies/:id', protect, getDie);
 
