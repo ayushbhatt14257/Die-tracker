@@ -1,9 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Factory, Clock, TrendingDown, AlertTriangle, CheckCircle, RefreshCw, Search, X } from 'lucide-react';
+import { Factory, Clock, TrendingDown, AlertTriangle, CheckCircle, RefreshCw, Search, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { dieAPI } from '../api';
 import { Spinner, EmptyState } from '../components/ui';
 import DieCard from '../components/die/DieCard';
 import toast from 'react-hot-toast';
+
+const PAGE_SIZE = 5;
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 
 const StatCard = ({ label, value, color, icon: Icon, onClick, active }) => {
   const colors = {
@@ -32,6 +39,8 @@ const StatCard = ({ label, value, color, icon: Icon, onClick, active }) => {
 };
 
 const Dashboard = () => {
+  const now = new Date();
+
   const [stats, setStats] = useState(null);
   const [allDies, setAllDies] = useState([]); // all fetched dies, unfiltered
   const [loading, setLoading] = useState(true);
@@ -40,12 +49,20 @@ const Dashboard = () => {
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Month filter — defaults to current month/year
+  const [month, setMonth] = useState(now.getMonth() + 1); // 1-12
+  const [year, setYear] = useState(now.getFullYear());
+  const [monthActive, setMonthActive] = useState(true); // true = filtering by month, false = all-time
+
+  const [page, setPage] = useState(1);
+
   const fetchData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
     try {
+      const dateParams = monthActive ? { month, year } : {};
       const [statsRes, diesRes] = await Promise.all([
-        dieAPI.getStats(),
-        dieAPI.getAll({ status: statusTab, search, limit: 100 }),
+        dieAPI.getStats(dateParams),
+        dieAPI.getAll({ status: statusTab, search, limit: 1000, ...dateParams }),
       ]);
       if (statsRes.data.success) setStats(statsRes.data.data);
       if (diesRes.data.success) setAllDies(diesRes.data.data);
@@ -55,13 +72,16 @@ const Dashboard = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [statusTab, search]);
+  }, [statusTab, search, monthActive, month, year]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
     const interval = setInterval(() => fetchData(), 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [statusTab, statusFilter, search, monthActive, month, year]);
 
   // Filter dies on the frontend based on statusFilter
   const filteredDies = (() => {
@@ -71,12 +91,37 @@ const Dashboard = () => {
     return allDies.filter(die => die.overallStatus === target);
   })();
 
+  const totalPages = Math.max(1, Math.ceil(filteredDies.length / PAGE_SIZE));
+  const pagedDies = filteredDies.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const handleCardClick = (cardFilter) => {
     setStatusTab('active');
     setStatusFilter(prev => prev === cardFilter ? '' : cardFilter);
   };
 
   const clearFilter = () => setStatusFilter('');
+
+  const handleClearMonthFilter = () => {
+    setMonthActive(false);
+  };
+
+  const handleMonthChange = (newMonth, newYear) => {
+    setMonth(newMonth);
+    setYear(newYear);
+    setMonthActive(true);
+  };
+
+  const goPrevMonth = () => {
+    let m = month - 1, y = year;
+    if (m < 1) { m = 12; y -= 1; }
+    handleMonthChange(m, y);
+  };
+
+  const goNextMonth = () => {
+    let m = month + 1, y = year;
+    if (m > 12) { m = 1; y += 1; }
+    handleMonthChange(m, y);
+  };
 
   if (loading) return <div className="flex justify-center py-20"><Spinner size="lg" /></div>;
 
@@ -88,6 +133,40 @@ const Dashboard = () => {
           <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
         </button>
+      </div>
+
+      {/* Month filter bar */}
+      <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-3 py-2 mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-400" />
+          {monthActive ? (
+            <div className="flex items-center gap-1">
+              <button onClick={goPrevMonth} className="p-1 text-gray-400 hover:text-gray-700">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm font-medium text-gray-800 min-w-[120px] text-center">
+                {MONTH_NAMES[month - 1]} {year}
+              </span>
+              <button onClick={goNextMonth} className="p-1 text-gray-400 hover:text-gray-700">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <span className="text-sm font-medium text-gray-500">Showing all-time data</span>
+          )}
+        </div>
+        {monthActive ? (
+          <button onClick={handleClearMonthFilter} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+            <X className="w-3 h-3" /> Clear filter (show all)
+          </button>
+        ) : (
+          <button
+            onClick={() => handleMonthChange(now.getMonth() + 1, now.getFullYear())}
+            className="text-xs text-blue-600 hover:text-blue-800"
+          >
+            Jump to current month
+          </button>
+        )}
       </div>
 
       {/* KPI tiles */}
@@ -116,7 +195,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Active filter banner */}
+      {/* Active status filter banner */}
       {statusFilter && (
         <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 mb-3">
           <span className="text-xs text-blue-700 font-medium">
@@ -157,9 +236,37 @@ const Dashboard = () => {
       </div>
 
       {filteredDies.length === 0
-        ? <EmptyState icon={Factory} title="No dies found" subtitle={statusFilter ? 'No dies match this filter' : 'Change filters or create a new die'} />
-        : filteredDies.map(die => <DieCard key={die._id} die={die} onRefresh={fetchData} />)
+        ? <EmptyState icon={Factory} title="No dies found" subtitle={statusFilter || monthActive ? 'No dies match this filter' : 'Change filters or create a new die'} />
+        : pagedDies.map(die => <DieCard key={die._id} die={die} onRefresh={fetchData} />)
       }
+
+      {/* Pagination */}
+      {filteredDies.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4 px-1">
+          <p className="text-xs text-gray-500">
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredDies.length)} of {filteredDies.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="btn btn-ghost text-xs disabled:opacity-30"
+            >
+              <ChevronLeft className="w-3 h-3" /> Prev
+            </button>
+            <span className="text-xs text-gray-600 font-medium">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="btn btn-ghost text-xs disabled:opacity-30"
+            >
+              Next <ChevronRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

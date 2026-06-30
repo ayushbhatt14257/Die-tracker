@@ -48,7 +48,7 @@ const enrichDie = (die, holidays = []) => {
 // GET /api/dies
 const getDies = async (req, res) => {
   try {
-    const { status = 'active', page = 1, limit = 20, search = '', statusFilter = '' } = req.query;
+    const { status = 'active', page = 1, limit = 20, search = '', statusFilter = '', month = '', year = '' } = req.query;
     const holidays = await fetchHolidays();
 
     const query = {};
@@ -59,12 +59,16 @@ const getDies = async (req, res) => {
         { dieId: { $regex: search, $options: 'i' } },
       ];
     }
+    // Month filter — filters by createdAt within the given month/year
+    if (month && year) {
+      const start = new Date(Number(year), Number(month) - 1, 1);
+      const end = new Date(Number(year), Number(month), 1);
+      query.createdAt = { $gte: start, $lt: end };
+    }
 
     let dies = await Die.find(query)
       .populate('parts.assignedOperator', 'name role')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit));
+      .sort({ createdAt: -1 });
 
     let enriched = dies.map(d => enrichDie(d, holidays));
 
@@ -339,12 +343,21 @@ const getMouldingDies = async (req, res) => {
 // GET /api/dies/stats
 const getStats = async (req, res) => {
   try {
+    const { month = '', year = '' } = req.query;
     const holidays = await fetchHolidays();
+
+    const dateQuery = {};
+    if (month && year) {
+      const start = new Date(Number(year), Number(month) - 1, 1);
+      const end = new Date(Number(year), Number(month), 1);
+      dateQuery.createdAt = { $gte: start, $lt: end };
+    }
+
     const [active, inTransit, inMoulding, completed] = await Promise.all([
-      Die.find({ status: 'active' }),
-      Die.countDocuments({ status: 'in_transit' }),
-      Die.countDocuments({ status: 'in_moulding' }),
-      Die.countDocuments({ status: 'completed' }),
+      Die.find({ status: 'active', ...dateQuery }),
+      Die.countDocuments({ status: 'in_transit', ...dateQuery }),
+      Die.countDocuments({ status: 'in_moulding', ...dateQuery }),
+      Die.countDocuments({ status: 'completed', ...dateQuery }),
     ]);
 
     let onTrack = 0, delayed = 0, overdue = 0;
