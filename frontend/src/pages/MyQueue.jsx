@@ -79,14 +79,25 @@ const MyQueue = () => {
   }[user?.role];
 
   const filterMyParts = (allDies) => {
-    return allDies.filter(die =>
-      die.parts.some(part => {
+    return allDies.filter(die => {
+      // Normal case: a part is waiting at this user's stage
+      const hasPendingPart = die.parts.some(part => {
         if (part.isCompleted) return false;
         if (part.currentStage !== myStage) return false;
         if (user?.role === 'vmc_operator' && part.assignedMachine && part.assignedMachine !== user.assignedMachine) return false;
         return true;
-      })
-    );
+      });
+      if (hasPendingPart) return true;
+
+      // Tool Room Head special case: keep die visible after all parts are
+      // completed so the "Send to GR1 Moulding" dispatch button still shows
+      if (user?.role === 'toolroom_head') {
+        const allPartsDone = die.parts.every(p => p.isCompleted);
+        if (allPartsDone && die.status === 'active') return true;
+      }
+
+      return false;
+    });
   };
 
   const fetchActive = useCallback(async (showSpinner = false) => {
