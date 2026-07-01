@@ -458,8 +458,78 @@ const getMyHistory = async (req, res) => {
   }
 };
 
+// PUT /api/dies/:id — update die (only if all parts still at stage 1)
+const updateDie = async (req, res) => {
+  try {
+    const die = await Die.findById(req.params.id);
+    if (!die) return sendError(res, 'Die not found', 404);
+
+    // Only allowed before any part has moved past Design (stage 1)
+    const anyAdvanced = die.parts.some(p => p.currentStage > 1 || p.isCompleted);
+    if (anyAdvanced) return sendError(res, 'Cannot edit die after Design stage is complete');
+
+    const { modelName, designOption, blockType, parts: partNames, priority, notes } = req.body;
+
+    if (modelName) die.modelName = modelName;
+    if (designOption) die.designOption = designOption;
+    if (blockType) die.blockType = blockType;
+    if (priority) die.priority = priority;
+    if (notes !== undefined) die.notes = notes;
+
+    // Update parts if provided
+    if (partNames && Array.isArray(partNames)) {
+      const allowedParts = ['Pocket', 'Cavity', 'Insert'];
+      const invalid = partNames.filter(p => !allowedParts.includes(p));
+      if (invalid.length > 0) return sendError(res, `Invalid parts: ${invalid.join(', ')}`);
+
+      const existingNames = die.parts.map(p => p.name);
+      const newNames = partNames;
+
+      // Add new parts
+      for (const name of newNames) {
+        if (!existingNames.includes(name)) {
+          die.parts.push({
+            name,
+            currentStage: 1,
+            currentStageStartedAt: new Date(),
+            stageLog: [{
+              stage: 1, stageName: STAGES[1], action: 'started',
+              performedBy: req.user._id, performedByName: req.user.name, timestamp: new Date(),
+            }],
+          });
+        }
+      }
+
+      // Remove parts not in new list
+      die.parts = die.parts.filter(p => newNames.includes(p.name));
+    }
+
+    await die.save();
+    const holidays = await fetchHolidays();
+    return sendSuccess(res, `${die.dieId} updated`, enrichDie(die, holidays));
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+};
+
+// DELETE /api/dies/:id — delete die (only if all parts still at stage 1)
+const deleteDie = async (req, res) => {
+  try {
+    const die = await Die.findById(req.params.id);
+    if (!die) return sendError(res, 'Die not found', 404);
+
+    const anyAdvanced = die.parts.some(p => p.currentStage > 1 || p.isCompleted);
+    if (anyAdvanced) return sendError(res, 'Cannot delete die after Design stage is complete');
+
+    await Die.findByIdAndDelete(req.params.id);
+    return sendSuccess(res, `${die.dieId} deleted`);
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+};
+
 module.exports = {
-  getDies, getDie, createDie, advancePart, completePartToolroom,
+  getDies, getDie, createDie, updateDie, deleteDie, advancePart, completePartToolroom,
   sendToMoulding, receiveAtGR1, reportIssue, resolveIssue,
   getMouldingDies, getStats, getHistory, getMyHistory,
 };

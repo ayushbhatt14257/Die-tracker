@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, Clock, MapPin, User, Factory, Truck, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Clock, MapPin, User, Factory, Truck, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StatusBadge, StageBar, StageDots, Modal } from '../ui';
 import { fmtHours, fmtDate, STAGES, getPartBorderColor } from '../../utils/helpers';
 import { dieAPI } from '../../api';
 import { useAuth } from '../../context/AuthContext';
+
+const formatModelName = (value) =>
+  value.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
 
 const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
   const { user, isOwner } = useAuth();
@@ -216,6 +219,60 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
   const [expanded, setExpanded] = useState(!compact);
   const [sendingToMoulding, setSendingToMoulding] = useState(false);
   const [receivingGR1, setReceivingGR1] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editForm, setEditForm] = useState({
+    modelName: die.modelName,
+    designOption: die.designOption,
+    blockType: die.blockType,
+    priority: die.priority,
+    notes: die.notes || '',
+    parts: die.parts.map(p => p.name),
+  });
+
+  // Can edit/delete only if ALL parts still at stage 1
+  const canEditDelete = (isOwner || user?.role === 'designer') &&
+    die.status === 'active' &&
+    die.parts.every(p => p.currentStage === 1 && !p.isCompleted);
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      const { data } = await dieAPI.update(die._id, editForm);
+      if (data.success) {
+        toast.success(`${die.dieId} updated`);
+        setEditOpen(false);
+        onRefresh();
+      } else toast.error(data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error updating die');
+    } finally { setEditLoading(false); }
+  };
+
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      const { data } = await dieAPI.delete(die._id);
+      if (data.success) {
+        toast.success(`${die.dieId} deleted`);
+        onRefresh();
+      } else toast.error(data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error deleting die');
+    } finally { setDeleteLoading(false); setDeleteConfirm(false); }
+  };
+
+  const toggleEditPart = (name) => {
+    const required = ['Pocket', 'Cavity'];
+    if (required.includes(name) && editForm.parts.includes(name)) return;
+    setEditForm(f => ({
+      ...f,
+      parts: f.parts.includes(name) ? f.parts.filter(p => p !== name) : [...f.parts, name],
+    }));
+  };
 
   const allPartsComplete = die.parts.every(p => p.isCompleted);
   const openIssues = die.parts.flatMap(p => p.issues?.filter(i => !i.isResolved) || []);
@@ -284,6 +341,24 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
           <p className="text-xs text-gray-500">{die.designOption} · {die.blockType} · {die.parts.length} parts</p>
         </div>
         <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+          {canEditDelete && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); setEditForm({ modelName: die.modelName, designOption: die.designOption, blockType: die.blockType, priority: die.priority, notes: die.notes || '', parts: die.parts.map(p => p.name) }); setEditOpen(true); }}
+                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Edit die"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); setDeleteConfirm(true); }}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete die"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
           <span className="text-xs text-gray-400">
             {die.parts.filter(p => p.isCompleted).length}/{die.parts.length} done
           </span>
@@ -362,6 +437,75 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Edit ${die.dieId}`}>
+        <form onSubmit={handleEdit} className="space-y-3">
+          <div>
+            <label className="label">Model name *</label>
+            <input
+              className="input font-mono"
+              value={editForm.modelName}
+              onChange={e => setEditForm(f => ({ ...f, modelName: formatModelName(e.target.value) }))}
+              required
+            />
+            <p className="text-xs text-gray-400 mt-0.5">Auto-converts to UPPERCASE_WITH_UNDERSCORES</p>
+          </div>
+          <div>
+            <label className="label">Design option *</label>
+            <input className="input" value={editForm.designOption} onChange={e => setEditForm(f => ({ ...f, designOption: e.target.value }))} required />
+          </div>
+          <div>
+            <label className="label">Block type *</label>
+            <input className="input" value={editForm.blockType} onChange={e => setEditForm(f => ({ ...f, blockType: e.target.value }))} required />
+          </div>
+          <div>
+            <label className="label">Parts</label>
+            {['Pocket', 'Cavity', 'Insert'].map(name => (
+              <label key={name} className={`flex items-center gap-2 p-2 rounded-lg border mb-1 cursor-pointer ${editForm.parts.includes(name) ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
+                <input
+                  type="checkbox"
+                  checked={editForm.parts.includes(name)}
+                  onChange={() => toggleEditPart(name)}
+                  disabled={['Pocket', 'Cavity'].includes(name)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">{name}</span>
+                {['Pocket', 'Cavity'].includes(name) && <span className="text-xs text-gray-400 ml-auto">Required</span>}
+              </label>
+            ))}
+          </div>
+          <div>
+            <label className="label">Priority</label>
+            <select className="input" value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}>
+              <option value="normal">Normal</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Notes</label>
+            <textarea className="input resize-none" rows={2} value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={() => setEditOpen(false)} className="btn btn-ghost flex-1">Cancel</button>
+            <button type="submit" className="btn btn-primary flex-1" disabled={editLoading}>
+              {editLoading ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Confirm */}
+      <Modal open={deleteConfirm} onClose={() => setDeleteConfirm(false)} title={`Delete ${die.dieId}?`}>
+        <p className="text-sm text-gray-600 mb-2">Are you sure you want to delete <span className="font-semibold">{die.modelName}</span>?</p>
+        <p className="text-xs text-red-500 mb-5">This cannot be undone.</p>
+        <div className="flex gap-2">
+          <button onClick={() => setDeleteConfirm(false)} className="btn btn-ghost flex-1">Cancel</button>
+          <button onClick={handleDelete} className="btn btn-danger flex-1" disabled={deleteLoading}>
+            {deleteLoading ? 'Deleting…' : 'Yes, delete'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 };

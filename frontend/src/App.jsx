@@ -9,6 +9,7 @@ import MyQueue from './pages/MyQueue';
 import Moulding from './pages/Moulding';
 import Admin from './pages/Admin';
 import History from './pages/History';
+import WhatsNewModal from './components/WhatsNewModal';
 
 // Redirect unauthorized roles to their correct home page
 const getHomeForRole = (role) => {
@@ -62,6 +63,7 @@ const App = () => (
   <AuthProvider>
     <BrowserRouter>
       <Toaster position="top-center" toastOptions={{ duration: 4000, style: { borderRadius: '12px', fontSize: '13px', fontWeight: '500' } }} />
+      <WhatsNewModal />
       <AppRoutes />
     </BrowserRouter>
   </AuthProvider>

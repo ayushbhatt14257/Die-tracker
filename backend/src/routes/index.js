@@ -1,7 +1,7 @@
 const express = require('express');
 const { login, loginValidation, getMe } = require('../controllers/authController');
 const {
-  getDies, getDie, createDie, advancePart, completePartToolroom,
+  getDies, getDie, createDie, updateDie, deleteDie, advancePart, completePartToolroom,
   sendToMoulding, receiveAtGR1, reportIssue, resolveIssue, getMouldingDies, getStats,
   getHistory, getMyHistory,
 } = require('../controllers/dieController');
@@ -29,6 +29,16 @@ router.get('/dies/:id', protect, getDie);
 router.post('/dies', protect,
   authorize('designer', 'admin', 'owner'),
   createDie
+);
+
+router.put('/dies/:id', protect,
+  authorize('designer', 'admin', 'owner'),
+  updateDie
+);
+
+router.delete('/dies/:id', protect,
+  authorize('designer', 'admin', 'owner'),
+  deleteDie
 );
 
 router.post('/dies/:id/parts/:partId/advance', protect,
