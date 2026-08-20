@@ -1,5 +1,6 @@
 const Die = require('../models/Die');
 const Holiday = require('../models/Holiday');
+const Notification = require('../models/Notification');
 const { sendSuccess, sendError } = require('../utils/response');
 const {
   STAGES, STAGE_NAMES, VMC_MIN_HOURS,
@@ -51,7 +52,7 @@ const getDies = async (req, res) => {
     const { status = 'active', page = 1, limit = 20, search = '', statusFilter = '', month = '', year = '' } = req.query;
     const holidays = await fetchHolidays();
 
-    const query = {};
+    const query = { isDeleted: { $ne: true } };
     if (status !== 'all') query.status = status;
     if (search) {
       query.$or = [
@@ -89,7 +90,7 @@ const getDies = async (req, res) => {
 const getDie = async (req, res) => {
   try {
     const holidays = await fetchHolidays();
-    const die = await Die.findById(req.params.id).populate('parts.assignedOperator', 'name role');
+    const die = await Die.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).populate('parts.assignedOperator', 'name role');
     if (!die) return sendError(res, 'Die not found', 404);
     return sendSuccess(res, 'Die fetched', enrichDie(die, holidays));
   } catch (err) {
@@ -100,7 +101,10 @@ const getDie = async (req, res) => {
 // POST /api/dies
 const createDie = async (req, res) => {
   try {
-    const { modelName, designOption, blockType, parts: partNames, priority, notes } = req.body;
+    const {
+      modelName, parts: partNames, priority, notes,
+      sentBy, checkDimensionSOP, designPlanning, master,
+    } = req.body;
     if (!partNames || partNames.length === 0) return sendError(res, 'At least one part is required');
 
     const allowedParts = ['Pocket', 'Cavity', 'Insert'];
@@ -118,8 +122,12 @@ const createDie = async (req, res) => {
     }));
 
     const die = await Die.create({
-      modelName, designOption, blockType, parts,
+      modelName, parts,
       priority: priority || 'normal', notes: notes || '',
+      sentBy: sentBy || '',
+      checkDimensionSOP: !!checkDimensionSOP,
+      designPlanning: Array.isArray(designPlanning) ? designPlanning : [],
+      master: master || '',
       createdBy: req.user._id, createdByName: req.user.name,
     });
 
@@ -332,7 +340,7 @@ const resolveIssue = async (req, res) => {
 const getMouldingDies = async (req, res) => {
   try {
     const holidays = await fetchHolidays();
-    const dies = await Die.find({ status: { $in: ['in_transit', 'in_moulding'] } })
+    const dies = await Die.find({ status: { $in: ['in_transit', 'in_moulding'] }, isDeleted: { $ne: true } })
       .sort({ sentToGR1At: -1 });
     return sendSuccess(res, 'Moulding dies fetched', dies.map(d => enrichDie(d, holidays)));
   } catch (err) {
@@ -346,7 +354,7 @@ const getStats = async (req, res) => {
     const { month = '', year = '' } = req.query;
     const holidays = await fetchHolidays();
 
-    const dateQuery = {};
+    const dateQuery = { isDeleted: { $ne: true } };
     if (month && year) {
       const start = new Date(Number(year), Number(month) - 1, 1);
       const end = new Date(Number(year), Number(month), 1);
@@ -381,7 +389,7 @@ const getStats = async (req, res) => {
 const getHistory = async (req, res) => {
   try {
     const { search = '', startDate, endDate, page = 1, limit = 50 } = req.query;
-    const query = { status: 'in_moulding' };
+    const query = { status: 'in_moulding', isDeleted: { $ne: true } };
 
     if (search) {
       query.$or = [
@@ -428,6 +436,7 @@ const getMyHistory = async (req, res) => {
 
     // Find dies where this user completed their stage (part has moved past myStage)
     const dies = await Die.find({
+      isDeleted: { $ne: true },
       'parts.stageLog': {
         $elemMatch: {
           stage: myStage,
@@ -468,13 +477,18 @@ const updateDie = async (req, res) => {
     const anyAdvanced = die.parts.some(p => p.currentStage > 1 || p.isCompleted);
     if (anyAdvanced) return sendError(res, 'Cannot edit die after Design stage is complete');
 
-    const { modelName, designOption, blockType, parts: partNames, priority, notes } = req.body;
+    const {
+      modelName, parts: partNames, priority, notes,
+      sentBy, checkDimensionSOP, designPlanning, master,
+    } = req.body;
 
     if (modelName) die.modelName = modelName;
-    if (designOption) die.designOption = designOption;
-    if (blockType) die.blockType = blockType;
     if (priority) die.priority = priority;
     if (notes !== undefined) die.notes = notes;
+    if (sentBy !== undefined) die.sentBy = sentBy;
+    if (checkDimensionSOP !== undefined) die.checkDimensionSOP = !!checkDimensionSOP;
+    if (Array.isArray(designPlanning)) die.designPlanning = designPlanning;
+    if (master !== undefined) die.master = master;
 
     // Update parts if provided
     if (partNames && Array.isArray(partNames)) {
@@ -512,7 +526,8 @@ const updateDie = async (req, res) => {
   }
 };
 
-// DELETE /api/dies/:id — delete die (only if all parts still at stage 1)
+// DELETE /api/dies/:id — soft-delete die (only if all parts still at stage 1)
+// Die is kept in DB, flagged isDeleted, and surfaces in the Admin panel with a notification.
 const deleteDie = async (req, res) => {
   try {
     const die = await Die.findById(req.params.id);
@@ -521,15 +536,39 @@ const deleteDie = async (req, res) => {
     const anyAdvanced = die.parts.some(p => p.currentStage > 1 || p.isCompleted);
     if (anyAdvanced) return sendError(res, 'Cannot delete die after Design stage is complete');
 
-    await Die.findByIdAndDelete(req.params.id);
+    die.isDeleted = true;
+    die.deletedAt = new Date();
+    die.deletedBy = req.user._id;
+    die.deletedByName = req.user.name;
+    await die.save();
+
+    await Notification.create({
+      type: 'die_deleted',
+      message: `${die.dieId} (${die.modelName}) was deleted by ${req.user.name}`,
+      dieId: die.dieId,
+      die: die._id,
+      createdBy: req.user._id,
+      createdByName: req.user.name,
+    });
+
     return sendSuccess(res, `${die.dieId} deleted`);
   } catch (err) {
     return sendError(res, err.message, 500);
   }
 };
 
+// GET /api/dies/deleted — soft-deleted dies, for Admin panel
+const getDeletedDies = async (req, res) => {
+  try {
+    const dies = await Die.find({ isDeleted: true }).sort({ deletedAt: -1 });
+    return sendSuccess(res, 'Deleted dies fetched', dies.map(d => d.toObject()));
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+};
+
 module.exports = {
-  getDies, getDie, createDie, updateDie, deleteDie, advancePart, completePartToolroom,
+  getDies, getDie, createDie, updateDie, deleteDie, getDeletedDies, advancePart, completePartToolroom,
   sendToMoulding, receiveAtGR1, reportIssue, resolveIssue,
   getMouldingDies, getStats, getHistory, getMyHistory,
 };

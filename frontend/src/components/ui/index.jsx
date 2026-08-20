@@ -1,4 +1,7 @@
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Plus, X, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { listOptionAPI } from '../../api';
 
 export const Spinner = ({ size = 'md' }) => {
   const s = size === 'sm' ? 'w-4 h-4' : size === 'lg' ? 'w-8 h-8' : 'w-6 h-6';
@@ -94,6 +97,116 @@ export const Modal = ({ open, onClose, title, children }) => {
         </div>
         <div className="p-5">{children}</div>
       </div>
+    </div>
+  );
+};
+
+// A creatable + deletable option list, usable as single-select (radio-like) or multi-select (checkbox).
+// Backed by /api/list-options, type = 'sentBy' | 'designPlanning' | 'master'.
+export const ManagedOptionList = ({ type, value, onChange, multi = false, canManage = true, emptyText = 'No options yet — add one below' }) => {
+  const [options, setOptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newValue, setNewValue] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const fetchOptions = async () => {
+    try {
+      const { data } = await listOptionAPI.get(type);
+      if (data.success) setOptions(data.data);
+    } catch (err) {
+      toast.error('Failed to load options');
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchOptions(); }, [type]);
+
+  const isSelected = (val) => multi ? (value || []).includes(val) : value === val;
+
+  const toggle = (val) => {
+    if (multi) {
+      const current = value || [];
+      onChange(current.includes(val) ? current.filter(v => v !== val) : [...current, val]);
+    } else {
+      onChange(value === val ? '' : val);
+    }
+  };
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    if (!newValue.trim()) return;
+    setAdding(true);
+    try {
+      const { data } = await listOptionAPI.add(type, newValue.trim());
+      if (data.success) {
+        setOptions(o => [...o, data.data].sort((a, b) => a.value.localeCompare(b.value)));
+        toggle(data.data.value);
+        setNewValue('');
+      } else toast.error(data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error adding option');
+    } finally { setAdding(false); }
+  };
+
+  const handleDelete = async (id, val, e) => {
+    e.stopPropagation();
+    setDeletingId(id);
+    try {
+      const { data } = await listOptionAPI.delete(id);
+      if (data.success) {
+        setOptions(o => o.filter(opt => opt._id !== id));
+        if (multi) onChange((value || []).filter(v => v !== val));
+        else if (value === val) onChange('');
+      } else toast.error(data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error deleting option');
+    } finally { setDeletingId(null); }
+  };
+
+  if (loading) return <div className="py-3 flex justify-center"><Spinner size="sm" /></div>;
+
+  return (
+    <div>
+      {options.length === 0 ? (
+        <p className="text-xs text-gray-400 mb-2">{emptyText}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {options.map(opt => (
+            <button
+              type="button"
+              key={opt._id}
+              onClick={() => toggle(opt.value)}
+              className={`group flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-lg border text-xs font-medium transition-colors
+                ${isSelected(opt.value) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+            >
+              {isSelected(opt.value) && <Check className="w-3 h-3" />}
+              {opt.value}
+              {canManage && (
+                <span
+                  onClick={(e) => handleDelete(opt._id, opt.value, e)}
+                  className="ml-0.5 p-0.5 rounded hover:bg-red-100 text-gray-300 hover:text-red-500"
+                  title="Delete option"
+                >
+                  {deletingId === opt._id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      {canManage && (
+        <form onSubmit={handleAdd} className="flex gap-1.5">
+          <input
+            className="input text-xs py-1.5 flex-1"
+            placeholder="Add new option…"
+            value={newValue}
+            onChange={e => setNewValue(e.target.value)}
+          />
+          <button type="submit" className="btn btn-ghost text-xs px-2.5" disabled={adding || !newValue.trim()}>
+            {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          </button>
+        </form>
+      )}
     </div>
   );
 };

@@ -8,6 +8,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const path = require('path');
 
 const connectDB = require('./config/database');
+const seedListOptions = require('./config/seedListOptions');
 const routes = require('./routes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { startAlertCron } = require('./services/alertService');
@@ -78,7 +79,8 @@ app.use(errorHandler);
 // Start server
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
+connectDB().then(async () => {
+  await seedListOptions();
   app.listen(PORT, () => {
     console.log(`\n========================================`);
     console.log(`  Die Tracker API running on port ${PORT}`);

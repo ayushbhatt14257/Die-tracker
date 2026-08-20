@@ -49,8 +49,17 @@ const partSchema = new mongoose.Schema({
 const dieSchema = new mongoose.Schema({
   dieId: { type: String, unique: true },
   modelName: { type: String, required: [true, 'Model name is required'], trim: true },
-  designOption: { type: String, required: [true, 'Design option is required'], trim: true },
-  blockType: { type: String, required: [true, 'Block type is required'], trim: true },
+  // Legacy fields — no longer shown on the create/edit form, kept optional for backward compatibility
+  designOption: { type: String, trim: true, default: '' },
+  blockType: { type: String, trim: true, default: '' },
+  // Who physically sent/handed over this die (free-text, saved to a reusable dropdown list)
+  sentBy: { type: String, trim: true, default: '' },
+  // Whether dimension has been checked / SOP followed
+  checkDimensionSOP: { type: Boolean, default: false },
+  // Die planning category — multi-select (e.g. Candy, Mag-case, Converter Case…)
+  designPlanning: { type: [String], default: [] },
+  // Master block type — single select (e.g. IP-Block, HH-China…)
+  master: { type: String, trim: true, default: '' },
   parts: [partSchema],
   status: {
     type: String,
@@ -59,6 +68,11 @@ const dieSchema = new mongoose.Schema({
   },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdByName: String,
+  // Soft delete — deleted dies stay in DB and surface in the Admin panel
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  deletedByName: String,
   // GR2 → GR1 transit fields
   sentToGR1At: { type: Date, default: null },
   sentToGR1By: String,

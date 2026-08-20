@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, Clock, MapPin, User, Factory, Truck, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { StatusBadge, StageBar, StageDots, Modal } from '../ui';
+import { StatusBadge, StageBar, StageDots, Modal, ManagedOptionList } from '../ui';
 import { fmtHours, fmtDate, STAGES, getPartBorderColor } from '../../utils/helpers';
 import { dieAPI } from '../../api';
 import { useAuth } from '../../context/AuthContext';
@@ -225,8 +225,10 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [editForm, setEditForm] = useState({
     modelName: die.modelName,
-    designOption: die.designOption,
-    blockType: die.blockType,
+    sentBy: die.sentBy || '',
+    checkDimensionSOP: !!die.checkDimensionSOP,
+    designPlanning: die.designPlanning || [],
+    master: die.master || '',
     priority: die.priority,
     notes: die.notes || '',
     parts: die.parts.map(p => p.name),
@@ -338,13 +340,15 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
             )}
           </div>
           <p className="font-semibold text-gray-900 text-sm leading-tight">{die.modelName}</p>
-          <p className="text-xs text-gray-500">{die.designOption} · {die.blockType} · {die.parts.length} parts</p>
+          <p className="text-xs text-gray-500">
+            {[die.master, ...(die.designPlanning || [])].filter(Boolean).join(' · ') || '—'} · {die.parts.length} parts
+          </p>
         </div>
         <div className="flex items-center gap-2 ml-2 flex-shrink-0">
           {canEditDelete && (
             <>
               <button
-                onClick={e => { e.stopPropagation(); setEditForm({ modelName: die.modelName, designOption: die.designOption, blockType: die.blockType, priority: die.priority, notes: die.notes || '', parts: die.parts.map(p => p.name) }); setEditOpen(true); }}
+                onClick={e => { e.stopPropagation(); setEditForm({ modelName: die.modelName, sentBy: die.sentBy || '', checkDimensionSOP: !!die.checkDimensionSOP, designPlanning: die.designPlanning || [], master: die.master || '', priority: die.priority, notes: die.notes || '', parts: die.parts.map(p => p.name) }); setEditOpen(true); }}
                 className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 title="Edit die"
               >
@@ -452,12 +456,25 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
             <p className="text-xs text-gray-400 mt-0.5">Auto-converts to UPPERCASE_WITH_UNDERSCORES</p>
           </div>
           <div>
-            <label className="label">Design option *</label>
-            <input className="input" value={editForm.designOption} onChange={e => setEditForm(f => ({ ...f, designOption: e.target.value }))} required />
+            <label className="label">Sent by</label>
+            <ManagedOptionList type="sentBy" value={editForm.sentBy} onChange={val => setEditForm(f => ({ ...f, sentBy: val }))} />
+          </div>
+          <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-gray-300">
+            <input
+              type="checkbox"
+              checked={editForm.checkDimensionSOP}
+              onChange={e => setEditForm(f => ({ ...f, checkDimensionSOP: e.target.checked }))}
+              className="w-4 h-4 text-blue-600"
+            />
+            <span className="text-sm font-medium text-gray-900">Check dimension / Check with SOP</span>
+          </label>
+          <div>
+            <label className="label">Design planning</label>
+            <ManagedOptionList type="designPlanning" multi value={editForm.designPlanning} onChange={val => setEditForm(f => ({ ...f, designPlanning: val }))} />
           </div>
           <div>
-            <label className="label">Block type *</label>
-            <input className="input" value={editForm.blockType} onChange={e => setEditForm(f => ({ ...f, blockType: e.target.value }))} required />
+            <label className="label">Master</label>
+            <ManagedOptionList type="master" value={editForm.master} onChange={val => setEditForm(f => ({ ...f, master: val }))} />
           </div>
           <div>
             <label className="label">Parts</label>

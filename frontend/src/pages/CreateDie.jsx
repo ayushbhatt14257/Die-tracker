@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { dieAPI } from '../api';
+import { ManagedOptionList } from '../components/ui';
 
 const PART_OPTIONS = [
   { name: 'Pocket', desc: 'Always required', required: true },
@@ -27,8 +28,10 @@ const CreateDie = () => {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     modelName: '',
-    designOption: '',
-    blockType: '',
+    sentBy: '',
+    checkDimensionSOP: false,
+    designPlanning: [],
+    master: '',
     parts: ['Pocket', 'Cavity'],
     priority: 'normal',
     notes: '',
@@ -50,7 +53,7 @@ const CreateDie = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.modelName || !form.designOption || !form.blockType)
+    if (!form.modelName)
       return toast.error('Please fill all required fields');
 
     if (!isValidModelName(form.modelName))
@@ -99,22 +102,40 @@ const CreateDie = () => {
           </div>
 
           <div>
-            <label className="label">Design option <span className="text-red-500">*</span></label>
+            <label className="label">Sent by</label>
+            <ManagedOptionList
+              type="sentBy"
+              value={form.sentBy}
+              onChange={val => setForm(f => ({ ...f, sentBy: val }))}
+            />
+          </div>
+
+          <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-gray-300">
             <input
-              className="input"
-              placeholder="e.g. MAG_CASE"
-              value={form.designOption}
-              onChange={e => setForm(f => ({ ...f, designOption: e.target.value }))}
+              type="checkbox"
+              checked={form.checkDimensionSOP}
+              onChange={e => setForm(f => ({ ...f, checkDimensionSOP: e.target.checked }))}
+              className="w-4 h-4 text-blue-600"
+            />
+            <span className="text-sm font-medium text-gray-900">Check dimension / Check with SOP</span>
+          </label>
+
+          <div>
+            <label className="label">Design planning</label>
+            <ManagedOptionList
+              type="designPlanning"
+              multi
+              value={form.designPlanning}
+              onChange={val => setForm(f => ({ ...f, designPlanning: val }))}
             />
           </div>
 
           <div>
-            <label className="label">Block type <span className="text-red-500">*</span></label>
-            <input
-              className="input"
-              placeholder="e.g. H-H"
-              value={form.blockType}
-              onChange={e => setForm(f => ({ ...f, blockType: e.target.value }))}
+            <label className="label">Master</label>
+            <ManagedOptionList
+              type="master"
+              value={form.master}
+              onChange={val => setForm(f => ({ ...f, master: val }))}
             />
           </div>
 

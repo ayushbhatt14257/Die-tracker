@@ -36,6 +36,7 @@ export const dieAPI = {
   getMoulding: () => api.get('/dies/moulding'),
   getHistory: (params) => api.get('/dies/history', { params }),
   getMyHistory: (params) => api.get('/dies/my-history', { params }),
+  getDeleted: () => api.get('/dies/deleted'),
   create: (data) => api.post('/dies', data),
   update: (id, data) => api.put(`/dies/${id}`, data),
   delete: (id) => api.delete(`/dies/${id}`),
@@ -55,6 +56,18 @@ export const adminAPI = {
   getHolidays: () => api.get('/admin/holidays'),
   addHoliday: (data) => api.post('/admin/holidays', data),
   deleteHoliday: (id) => api.delete(`/admin/holidays/${id}`),
+};
+
+export const listOptionAPI = {
+  get: (type) => api.get('/list-options', { params: { type } }),
+  add: (type, value) => api.post('/list-options', { type, value }),
+  delete: (id) => api.delete(`/list-options/${id}`),
+};
+
+export const notificationAPI = {
+  getAll: () => api.get('/notifications'),
+  markRead: (id) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.patch('/notifications/read-all'),
 };
 
 export default api;

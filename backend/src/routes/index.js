@@ -1,7 +1,7 @@
 const express = require('express');
 const { login, loginValidation, getMe } = require('../controllers/authController');
 const {
-  getDies, getDie, createDie, updateDie, deleteDie, advancePart, completePartToolroom,
+  getDies, getDie, createDie, updateDie, deleteDie, getDeletedDies, advancePart, completePartToolroom,
   sendToMoulding, receiveAtGR1, reportIssue, resolveIssue, getMouldingDies, getStats,
   getHistory, getMyHistory,
 } = require('../controllers/dieController');
@@ -9,6 +9,8 @@ const {
   getUsers, createUser, updateUser, getMonthlyReport,
   getHolidays, addHoliday, deleteHoliday,
 } = require('../controllers/adminController');
+const { getOptions, addOption, deleteOption } = require('../controllers/listOptionController');
+const { getNotifications, markRead, markAllRead } = require('../controllers/notificationController');
 const { protect, authorize } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 
@@ -23,6 +25,7 @@ router.get('/dies/stats', protect, getStats);
 router.get('/dies/moulding', protect, getMouldingDies);
 router.get('/dies/history', protect, getHistory);
 router.get('/dies/my-history', protect, getMyHistory);
+router.get('/dies/deleted', protect, authorize('owner', 'admin'), getDeletedDies);
 router.get('/dies', protect, getDies);
 router.get('/dies/:id', protect, getDie);
 
@@ -80,5 +83,18 @@ router.get('/admin/report', protect, authorize('owner', 'admin'), getMonthlyRepo
 router.get('/admin/holidays', protect, getHolidays);
 router.post('/admin/holidays', protect, authorize('owner', 'admin'), addHoliday);
 router.delete('/admin/holidays/:id', protect, authorize('owner', 'admin'), deleteHoliday);
+
+// ── LIST OPTIONS (Sent By / Design Planning / Master — creatable & deletable dropdowns) ──
+router.get('/list-options', protect, getOptions);
+router.post('/list-options', protect, addOption);
+router.delete('/list-options/:id', protect,
+  authorize('designer', 'admin', 'owner'),
+  deleteOption
+);
+
+// ── NOTIFICATIONS ────────────────────────────────────────
+router.get('/notifications', protect, authorize('owner', 'admin'), getNotifications);
+router.patch('/notifications/:id/read', protect, authorize('owner', 'admin'), markRead);
+router.patch('/notifications/read-all', protect, authorize('owner', 'admin'), markAllRead);
 
 module.exports = router;

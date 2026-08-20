@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, CalendarOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, CalendarOff, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { adminAPI } from '../api';
+import { adminAPI, dieAPI } from '../api';
 import { Spinner, Modal } from '../components/ui';
 import { ROLE_LABELS, fmtDate } from '../utils/helpers';
 
@@ -148,6 +148,7 @@ const HolidayModal = ({ open, onClose, onSave }) => {
 const Admin = () => {
   const [users, setUsers] = useState([]);
   const [holidays, setHolidays] = useState([]);
+  const [deletedDies, setDeletedDies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [holidayModalOpen, setHolidayModalOpen] = useState(false);
@@ -173,7 +174,16 @@ const Admin = () => {
     }
   };
 
-  useEffect(() => { fetchUsers(); fetchHolidays(); }, []);
+  const fetchDeletedDies = async () => {
+    try {
+      const { data } = await dieAPI.getDeleted();
+      if (data.success) setDeletedDies(data.data);
+    } catch (err) {
+      toast.error('Failed to load deleted dies');
+    }
+  };
+
+  useEffect(() => { fetchUsers(); fetchHolidays(); fetchDeletedDies(); }, []);
 
   const handleDeleteHoliday = async (id) => {
     setDeletingHoliday(id);
@@ -200,6 +210,7 @@ const Admin = () => {
         {[
           { key: 'users', label: 'Users' },
           { key: 'holidays', label: 'Holidays' },
+          { key: 'deleted', label: 'Deleted Dies' },
           { key: 'settings', label: 'Settings' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
@@ -294,6 +305,41 @@ const Admin = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Deleted Dies tab */}
+      {tab === 'deleted' && (
+        <>
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm text-gray-500">{deletedDies.length} deleted die(s)</p>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4 text-xs text-gray-600">
+            Dies deleted by designers/admins are kept here for reference and are not permanently removed.
+          </div>
+          {deletedDies.length === 0 ? (
+            <div className="py-12 text-center">
+              <Archive className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+              <p className="text-sm font-medium text-gray-500">No deleted dies</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {deletedDies.map(d => (
+                <div key={d._id} className="card p-3">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="badge badge-gray font-mono text-xs">{d.dieId}</span>
+                    <span className="font-medium text-sm text-gray-900">{d.modelName}</span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Deleted by {d.deletedByName || '—'} · {fmtDate(d.deletedAt)}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Created by {d.createdByName} · {fmtDate(d.createdAt)}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </>
