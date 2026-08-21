@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2, Plus, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { listOptionAPI } from '../../api';
@@ -103,12 +103,14 @@ export const Modal = ({ open, onClose, title, children }) => {
 
 // A creatable + deletable option list, usable as single-select (radio-like) or multi-select (checkbox).
 // Backed by /api/list-options, type = 'sentBy' | 'designPlanning' | 'master'.
-export const ManagedOptionList = ({ type, value, onChange, multi = false, canManage = true, emptyText = 'No options yet — add one below' }) => {
+export const ManagedOptionList = ({ type, value, onChange, multi = false, canManage = true, emptyText = 'No options yet — add the first one' }) => {
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newValue, setNewValue] = useState('');
   const [adding, setAdding] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const inputRef = useRef(null);
 
   const fetchOptions = async () => {
     try {
@@ -120,8 +122,10 @@ export const ManagedOptionList = ({ type, value, onChange, multi = false, canMan
   };
 
   useEffect(() => { fetchOptions(); }, [type]);
+  useEffect(() => { if (addOpen) inputRef.current?.focus(); }, [addOpen]);
 
   const isSelected = (val) => multi ? (value || []).includes(val) : value === val;
+  const selectedCount = multi ? (value || []).length : (value ? 1 : 0);
 
   const toggle = (val) => {
     if (multi) {
@@ -132,8 +136,9 @@ export const ManagedOptionList = ({ type, value, onChange, multi = false, canMan
     }
   };
 
-  const handleAdd = async (e) => {
-    e?.preventDefault?.();
+  const closeAdd = () => { setAddOpen(false); setNewValue(''); };
+
+  const handleAdd = async () => {
     if (!newValue.trim() || adding) return;
     setAdding(true);
     try {
@@ -142,6 +147,7 @@ export const ManagedOptionList = ({ type, value, onChange, multi = false, canMan
         setOptions(o => [...o, data.data].sort((a, b) => a.value.localeCompare(b.value)));
         toggle(data.data.value);
         setNewValue('');
+        setAddOpen(false);
       } else toast.error(data.message);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error adding option');
@@ -163,56 +169,118 @@ export const ManagedOptionList = ({ type, value, onChange, multi = false, canMan
     } finally { setDeletingId(null); }
   };
 
-  if (loading) return <div className="py-3 flex justify-center"><Spinner size="sm" /></div>;
+  if (loading) {
+    return (
+      <div className="flex gap-1.5">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-8 rounded-full bg-gray-100 animate-pulse" style={{ width: 56 + i * 18 }} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div>
-      {options.length === 0 ? (
-        <p className="text-xs text-gray-400 mb-2">{emptyText}</p>
-      ) : (
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {options.map(opt => (
+      <div className="flex flex-wrap gap-1.5">
+        {options.length === 0 && !addOpen && (
+          <p className="text-xs text-gray-400 py-1.5">{emptyText}</p>
+        )}
+        {options.map(opt => {
+          const selected = isSelected(opt.value);
+          return (
             <button
               type="button"
               key={opt._id}
               onClick={() => toggle(opt.value)}
-              className={`group flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-lg border text-xs font-medium transition-colors
-                ${isSelected(opt.value) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+              className={`group relative flex items-center gap-1 pl-3 pr-2.5 py-1.5 rounded-full border text-xs font-medium
+                transition-all duration-150 active:scale-95
+                ${selected
+                  ? 'border-blue-600 bg-blue-600 text-white shadow-sm shadow-blue-200'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50/60'}`}
             >
-              {isSelected(opt.value) && <Check className="w-3 h-3" />}
+              <span className={`grid place-items-center overflow-hidden transition-all duration-150 ${selected ? 'w-3 mr-0.5' : 'w-0'}`}>
+                <Check className="w-3 h-3 flex-shrink-0" strokeWidth={3} />
+              </span>
               {opt.value}
               {canManage && (
                 <span
                   onClick={(e) => handleDelete(opt._id, opt.value, e)}
-                  className="ml-0.5 p-0.5 rounded hover:bg-red-100 text-gray-300 hover:text-red-500"
-                  title="Delete option"
+                  className={`ml-0.5 -mr-1 p-0.5 rounded-full transition-colors
+                    ${selected ? 'hover:bg-white/25 text-white/70 hover:text-white' : 'text-gray-300 hover:bg-red-100 hover:text-red-500'}`}
+                  title="Remove option"
                 >
                   {deletingId === opt._id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
                 </span>
               )}
             </button>
-          ))}
-        </div>
-      )}
-      {canManage && (
-        <div className="flex gap-1.5">
-          <input
-            className="input text-xs py-1.5 flex-1"
-            placeholder="Add new option…"
-            value={newValue}
-            onChange={e => setNewValue(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
-            }}
-          />
-          <button type="button" onClick={() => handleAdd()} className="btn btn-ghost text-xs px-2.5" disabled={adding || !newValue.trim()}>
-            {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          );
+        })}
+
+        {canManage && !addOpen && (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="flex items-center gap-1 pl-2.5 pr-3 py-1.5 rounded-full border border-dashed border-gray-300 text-xs font-medium text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/60 transition-colors"
+          >
+            <Plus className="w-3 h-3" /> Add new
           </button>
-        </div>
+        )}
+
+        {canManage && addOpen && (
+          <div className="flex items-center gap-1 pl-3 pr-1.5 py-1 rounded-full border border-blue-400 bg-blue-50/60 ring-2 ring-blue-100">
+            <input
+              ref={inputRef}
+              className="bg-transparent text-xs font-medium text-gray-800 placeholder-gray-400 outline-none w-28"
+              placeholder="Type & press enter…"
+              value={newValue}
+              onChange={e => setNewValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+                if (e.key === 'Escape') { e.preventDefault(); closeAdd(); }
+              }}
+              onBlur={() => { if (!newValue.trim()) closeAdd(); }}
+            />
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={handleAdd}
+              disabled={adding || !newValue.trim()}
+              className="p-1 rounded-full bg-blue-600 text-white disabled:opacity-40 hover:bg-blue-700 transition-colors"
+            >
+              {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" strokeWidth={3} />}
+            </button>
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={closeAdd}
+              className="p-1 rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+      {multi && selectedCount > 0 && (
+        <p className="text-xs text-gray-400 mt-1.5">{selectedCount} selected</p>
       )}
     </div>
   );
 };
+
+// Small eyebrow header used to group related fields inside a longer form
+export const SectionHeader = ({ icon: Icon, title, hint }) => (
+  <div className="flex items-center gap-2 pt-1">
+    {Icon && (
+      <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+        <Icon className="w-3.5 h-3.5" />
+      </div>
+    )}
+    <div className="min-w-0">
+      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{title}</p>
+      {hint && <p className="text-xs text-gray-400 leading-tight">{hint}</p>}
+    </div>
+  </div>
+);
 
 export const ConfirmDialog = ({ open, onClose, onConfirm, title, message, confirmText = 'Confirm', danger = false }) => (
   <Modal open={open} onClose={onClose} title={title}>
