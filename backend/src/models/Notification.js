@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdByName: String,
   isRead: { type: Boolean, default: false },
-}, { timestamps: true });
+}, { timestamps: true, autoIndex: false }); // autoIndex off — see ListOption.js for why
 
 notificationSchema.index({ createdAt: -1 });
 

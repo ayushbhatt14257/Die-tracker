@@ -12,7 +12,7 @@ const listOptionSchema = new mongoose.Schema({
   value: { type: String, required: true, trim: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   createdByName: String,
-}, { timestamps: true });
+}, { timestamps: true, autoIndex: false }); // autoIndex off — index built manually at startup (see seedListOptions.js) so a slow/failed index build never blocks a live request
 
 listOptionSchema.index({ type: 1, value: 1 }, { unique: true });
 
