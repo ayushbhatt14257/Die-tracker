@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Calendar, Clock, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Search, Calendar, Clock, CheckCircle, AlertTriangle, RefreshCw, Download } from 'lucide-react';
 import { dieAPI } from '../api';
 import { Spinner, EmptyState } from '../components/ui';
 import { fmtDate, fmtHours } from '../utils/helpers';
@@ -20,7 +20,9 @@ const HistoryCard = ({ die }) => {
               <span className="badge badge-purple">✅ Completed</span>
             </div>
             <p className="font-semibold text-gray-900">{die.modelName}</p>
-            <p className="text-xs text-gray-500">{die.designOption} · {die.blockType} · {die.parts?.length} parts</p>
+            <p className="text-xs text-gray-500">
+              {[die.master, ...(die.designPlanning || [])].filter(Boolean).join(' · ') || '—'} · {die.parts?.length} parts
+            </p>
           </div>
           {die.totalHours && (
             <div className="text-right">
@@ -98,26 +100,62 @@ const History = () => {
 
   const onTime = dies.filter(d => d.totalHours && d.totalHours <= 36).length;
   const overBudget = dies.filter(d => d.totalHours && d.totalHours > 36).length;
+  const withHours = dies.filter(d => d.totalHours);
+  const avgHours = withHours.length
+    ? withHours.reduce((sum, d) => sum + d.totalHours, 0) / withHours.length
+    : 0;
+
+  const exportCSV = () => {
+    const headers = ['Die ID', 'Model Name', 'Master', 'Design Planning', 'Parts', 'Created', 'Completed', 'Total Hours', 'On Time', 'Received By'];
+    const rows = dies.map(d => [
+      d.dieId,
+      d.modelName,
+      d.master || '',
+      (d.designPlanning || []).join('; '),
+      d.parts?.length || 0,
+      d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : '',
+      (d.receivedAtGR1At || d.sentToMouldingAt) ? new Date(d.receivedAtGR1At || d.sentToMouldingAt).toLocaleString('en-IN') : '',
+      d.totalHours ? d.totalHours.toFixed(1) : '',
+      d.totalHours ? (d.totalHours <= 36 ? 'Yes' : 'No') : '',
+      d.receivedAtGR1By || '',
+    ]);
+    const escape = (val) => `"${String(val).replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map(row => row.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `die-tracker-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) return <div className="flex justify-center py-20"><Spinner size="lg" /></div>;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
           <h1 className="text-lg font-bold text-gray-900">Completed Dies History</h1>
           <p className="text-xs text-gray-500">
             {dies.length} completed · {onTime} on time · {overBudget} over budget
+            {avgHours > 0 && <> · avg {fmtHours(avgHours)}</>}
           </p>
         </div>
-        <button onClick={() => fetchData(true)} className="btn btn-ghost text-xs" disabled={refreshing}>
-          <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="btn btn-ghost text-xs" disabled={dies.length === 0}>
+            <Download className="w-3 h-3" />
+            Export CSV
+          </button>
+          <button onClick={() => fetchData(true)} className="btn btn-ghost text-xs" disabled={refreshing}>
+            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <div className="card p-3 text-center">
           <p className="text-2xl font-bold text-gray-900">{dies.length}</p>
           <p className="text-xs text-gray-500">Total</p>
@@ -129,6 +167,10 @@ const History = () => {
         <div className="card p-3 text-center bg-red-50">
           <p className="text-2xl font-bold text-red-700">{overBudget}</p>
           <p className="text-xs text-red-600">Over Budget</p>
+        </div>
+        <div className="card p-3 text-center bg-blue-50">
+          <p className="text-2xl font-bold text-blue-700">{avgHours > 0 ? fmtHours(avgHours) : '—'}</p>
+          <p className="text-xs text-blue-600">Avg Turnaround</p>
         </div>
       </div>
 

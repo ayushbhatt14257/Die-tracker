@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, Clock, MapPin, User, Factory, Truck, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Clock, MapPin, User, Factory, Truck, CheckCircle2, Pencil, Trash2, Copy, History as HistoryIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { StatusBadge, StageBar, StageDots, Modal, ManagedOptionList } from '../ui';
 import { fmtHours, fmtDate, STAGES, getPartBorderColor } from '../../utils/helpers';
@@ -124,6 +124,9 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
           {part.assignedMachine && (
             <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{part.assignedMachine}</span>
           )}
+          {part.assignedOperator?.name && (
+            <span className="flex items-center gap-1"><User className="w-3 h-3" />{part.assignedOperator.name}</span>
+          )}
           {/* Hide stage elapsed and ETA for VMC operators at VMC stage */}
           {!(isAtVMC && isVMCOperator) && part.elapsedHours > 0 && (
             <span>Stage: {fmtHours(part.stageElapsedHours)}</span>
@@ -149,6 +152,23 @@ const PartRow = ({ die, part, onRefresh, operatorView = false }) => {
               <p className="text-red-400">{issue.reportedByName} · {fmtDate(issue.createdAt)}</p>
             </div>
           ))}
+          {part.stageLog?.length > 0 && (
+            <div className="pt-1">
+              <p className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1.5">
+                <HistoryIcon className="w-3 h-3" /> Stage history
+              </p>
+              <div className="space-y-1.5 border-l-2 border-gray-200 ml-1 pl-3">
+                {[...part.stageLog].reverse().map((log, i) => (
+                  <div key={i} className="relative text-xs">
+                    <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-gray-300" />
+                    <span className="text-gray-700 font-medium">{log.stageName}</span>
+                    <span className="text-gray-400"> — {log.action}</span>
+                    <p className="text-gray-400">{log.performedByName} · {fmtDate(log.timestamp)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -330,6 +350,17 @@ const DieCard = ({ die, onRefresh, operatorView = false, compact = false }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="badge badge-gray font-mono text-xs">{die.dieId}</span>
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(die.dieId);
+                toast.success('Die ID copied');
+              }}
+              className="p-0.5 text-gray-300 hover:text-blue-600 transition-colors"
+              title="Copy Die ID"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
             {die.priority === 'urgent' && <span className="badge badge-red">Urgent</span>}
             <StatusBadge status={dieStatus} />
             {openIssues.length > 0 && (

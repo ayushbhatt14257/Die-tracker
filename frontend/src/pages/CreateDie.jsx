@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Info, UserRound, ClipboardCheck, Layers, Box, Puzzle, Flag, StickyNote } from 'lucide-react';
+import { Plus, Info, UserRound, ClipboardCheck, Layers, Box, Puzzle, Flag, StickyNote, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { dieAPI } from '../api';
 import { ManagedOptionList, SectionHeader } from '../components/ui';
@@ -23,19 +23,55 @@ const isValidModelName = (value) => {
   return /^[A-Z0-9]+(_[A-Z0-9]+)*$/.test(value);
 };
 
+const DRAFT_KEY = 'dt_create_die_draft';
+const emptyForm = {
+  modelName: '',
+  sentBy: '',
+  checkDimensionSOP: false,
+  designPlanning: [],
+  master: '',
+  parts: ['Pocket', 'Cavity'],
+  priority: 'normal',
+  notes: '',
+};
+
+const loadDraft = () => {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Only restore if it actually has some content worth keeping
+    if (parsed.modelName || parsed.sentBy || parsed.notes || (parsed.designPlanning || []).length) return parsed;
+    return null;
+  } catch { return null; }
+};
+
 const CreateDie = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    modelName: '',
-    sentBy: '',
-    checkDimensionSOP: false,
-    designPlanning: [],
-    master: '',
-    parts: ['Pocket', 'Cavity'],
-    priority: 'normal',
-    notes: '',
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const [form, setForm] = useState(() => {
+    const draft = loadDraft();
+    if (draft) return draft;
+    return emptyForm;
   });
+
+  useEffect(() => {
+    if (loadDraft()) setRestoredDraft(true);
+  }, []);
+
+  // Auto-save draft on every change, so an accidental refresh doesn't lose the form
+  useEffect(() => {
+    const isEmpty = !form.modelName && !form.sentBy && !form.notes && form.designPlanning.length === 0 && !form.master;
+    if (isEmpty) { localStorage.removeItem(DRAFT_KEY); return; }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+  }, [form]);
+
+  const discardDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setForm(emptyForm);
+    setRestoredDraft(false);
+  };
 
   const handleModelNameChange = (e) => {
     const formatted = formatModelName(e.target.value);
@@ -64,6 +100,7 @@ const CreateDie = () => {
       const { data } = await dieAPI.create(form);
       if (data.success) {
         toast.success(`${data.data.dieId} created — ${form.parts.length} parts added to programming queue`);
+        localStorage.removeItem(DRAFT_KEY);
         navigate('/dashboard');
       } else {
         toast.error(data.message);
@@ -80,7 +117,23 @@ const CreateDie = () => {
 
   return (
     <div className="max-w-3xl mx-auto pb-24">
-      <h1 className="text-lg font-bold text-gray-900 mb-4">Create New Die</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-lg font-bold text-gray-900">Create New Die</h1>
+        {restoredDraft && (
+          <button
+            type="button"
+            onClick={discardDraft}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+          >
+            <RotateCcw className="w-3 h-3" /> Discard restored draft
+          </button>
+        )}
+      </div>
+      {restoredDraft && (
+        <div className="mb-3 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+          Restored your unsaved draft from last time — carry on, or discard it above.
+        </div>
+      )}
 
       <div className="card">
         <form onSubmit={handleSubmit} className="p-5 md:p-6 space-y-5">

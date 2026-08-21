@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Factory, Clock, TrendingDown, AlertTriangle, CheckCircle, RefreshCw, Search, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Factory, Clock, TrendingDown, AlertTriangle, CheckCircle, RefreshCw, Search, X, ChevronLeft, ChevronRight, Calendar, ArrowUpDown } from 'lucide-react';
 import { dieAPI } from '../api';
 import { Spinner, EmptyState } from '../components/ui';
 import DieCard from '../components/die/DieCard';
@@ -55,6 +55,7 @@ const Dashboard = () => {
   const [monthActive, setMonthActive] = useState(true); // true = filtering by month, false = all-time
 
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState('newest'); // newest | priority | mostDelayed
 
   const fetchData = useCallback(async (showSpinner = false) => {
     if (showSpinner) setRefreshing(true);
@@ -81,14 +82,31 @@ const Dashboard = () => {
   }, [fetchData]);
 
   // Reset to page 1 whenever filters change
-  useEffect(() => { setPage(1); }, [statusTab, statusFilter, search, monthActive, month, year]);
+  useEffect(() => { setPage(1); }, [statusTab, statusFilter, search, monthActive, month, year, sortBy]);
 
   // Filter dies on the frontend based on statusFilter
   const filteredDies = (() => {
-    if (!statusFilter) return allDies;
-    const map = { onTrack: 'ok', delayed: 'slow', overdue: 'over' };
-    const target = map[statusFilter];
-    return allDies.filter(die => die.overallStatus === target);
+    let list = allDies;
+    if (statusFilter) {
+      const map = { onTrack: 'ok', delayed: 'slow', overdue: 'over' };
+      const target = map[statusFilter];
+      list = list.filter(die => die.overallStatus === target);
+    }
+
+    const sorted = [...list];
+    if (sortBy === 'priority') {
+      sorted.sort((a, b) => (b.priority === 'urgent') - (a.priority === 'urgent'));
+    } else if (sortBy === 'mostDelayed') {
+      const rank = { over: 0, slow: 1, ok: 2 };
+      const maxElapsed = (die) => Math.max(0, ...die.parts.filter(p => !p.isCompleted).map(p => p.elapsedHours || 0));
+      sorted.sort((a, b) => {
+        const rankDiff = (rank[a.overallStatus] ?? 3) - (rank[b.overallStatus] ?? 3);
+        if (rankDiff !== 0) return rankDiff;
+        return maxElapsed(b) - maxElapsed(a);
+      });
+    }
+    // 'newest' — already sorted by createdAt desc from the backend, leave as-is
+    return sorted;
   })();
 
   const totalPages = Math.max(1, Math.ceil(filteredDies.length / PAGE_SIZE));
@@ -233,6 +251,19 @@ const Dashboard = () => {
             {f.label}
           </button>
         ))}
+        <div className="relative">
+          <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+          <select
+            className="input pl-7 pr-7 text-xs py-2 w-auto appearance-none cursor-pointer"
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            title="Sort dies"
+          >
+            <option value="newest">Newest first</option>
+            <option value="priority">Priority (Urgent first)</option>
+            <option value="mostDelayed">Most delayed first</option>
+          </select>
+        </div>
       </div>
 
       {filteredDies.length === 0
