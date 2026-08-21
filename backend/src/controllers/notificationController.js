@@ -4,7 +4,7 @@ const { sendSuccess, sendError } = require('../utils/response');
 // GET /api/notifications
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find().sort({ createdAt: -1 }).limit(100).maxTimeMS(8000);
+    const notifications = await Notification.find().sort({ createdAt: -1 }).limit(100).maxTimeMS(8000).lean();
     const unreadCount = await Notification.countDocuments({ isRead: false }).maxTimeMS(8000);
     return sendSuccess(res, 'Notifications fetched', notifications, { unreadCount });
   } catch (err) {

@@ -79,11 +79,11 @@ const CreateDie = () => {
   const selectedSummary = [form.master, ...(form.designPlanning || [])].filter(Boolean);
 
   return (
-    <div className="max-w-lg mx-auto pb-24">
+    <div className="max-w-3xl mx-auto pb-24">
       <h1 className="text-lg font-bold text-gray-900 mb-4">Create New Die</h1>
 
       <div className="card">
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+        <form onSubmit={handleSubmit} className="p-5 md:p-6 space-y-5">
 
           <div>
             <label className="label">Model name <span className="text-red-500">*</span></label>
@@ -104,13 +104,24 @@ const CreateDie = () => {
 
           <hr className="border-gray-100" />
 
-          <div className="space-y-2.5">
-            <SectionHeader icon={UserRound} title="Sent by" />
-            <ManagedOptionList
-              type="sentBy"
-              value={form.sentBy}
-              onChange={val => setForm(f => ({ ...f, sentBy: val }))}
-            />
+          <div className="grid md:grid-cols-2 gap-x-6 gap-y-5">
+            <div className="space-y-2.5">
+              <SectionHeader icon={UserRound} title="Sent by" />
+              <ManagedOptionList
+                type="sentBy"
+                value={form.sentBy}
+                onChange={val => setForm(f => ({ ...f, sentBy: val }))}
+              />
+            </div>
+
+            <div className="space-y-2.5">
+              <SectionHeader icon={Box} title="Master" />
+              <ManagedOptionList
+                type="master"
+                value={form.master}
+                onChange={val => setForm(f => ({ ...f, master: val }))}
+              />
+            </div>
           </div>
 
           <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors
@@ -137,86 +148,79 @@ const CreateDie = () => {
             />
           </div>
 
-          <div className="space-y-2.5">
-            <SectionHeader icon={Box} title="Master" />
-            <ManagedOptionList
-              type="master"
-              value={form.master}
-              onChange={val => setForm(f => ({ ...f, master: val }))}
-            />
-          </div>
-
           <hr className="border-gray-100" />
 
-          <div className="space-y-2.5">
-            <SectionHeader icon={Puzzle} title="Parts for this die" />
-            <div className="space-y-2">
-              {PART_OPTIONS.map(({ name, desc, required }) => (
-                <label
-                  key={name}
-                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors
-                    ${form.parts.includes(name)
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                    }
-                    ${required ? 'opacity-90' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.parts.includes(name)}
-                    onChange={() => togglePart(name)}
-                    disabled={required}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{name}</p>
-                    <p className="text-xs text-gray-500">{desc}</p>
-                  </div>
-                  {required && <span className="badge badge-gray text-xs">Required</span>}
-                </label>
-              ))}
+          <div className="grid md:grid-cols-2 gap-x-6 gap-y-5">
+            <div className="space-y-2.5">
+              <SectionHeader icon={Puzzle} title="Parts for this die" />
+              <div className="space-y-2">
+                {PART_OPTIONS.map(({ name, desc, required }) => (
+                  <label
+                    key={name}
+                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors
+                      ${form.parts.includes(name)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                      }
+                      ${required ? 'opacity-90' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.parts.includes(name)}
+                      onChange={() => togglePart(name)}
+                      disabled={required}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">{name}</p>
+                      <p className="text-xs text-gray-500">{desc}</p>
+                    </div>
+                    {required && <span className="badge badge-gray text-xs">Required</span>}
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-start gap-1.5 text-xs text-blue-600 bg-blue-50 rounded-lg p-2.5">
+                <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                Each part runs independently through Design → VMC → Wirecut. Tool Room handles all parts together as one die.
+              </div>
             </div>
-            <div className="flex items-start gap-1.5 text-xs text-blue-600 bg-blue-50 rounded-lg p-2.5">
-              <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-              Each part runs independently through Design → VMC → Wirecut. Tool Room handles all parts together as one die.
+
+            <div className="space-y-5">
+              <div className="space-y-2.5">
+                <SectionHeader icon={Flag} title="Priority" />
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { key: 'normal', label: 'Normal' },
+                    { key: 'urgent', label: 'Urgent' },
+                  ].map(p => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, priority: p.key }))}
+                      className={`py-2.5 rounded-xl text-sm font-semibold border transition-all active:scale-95
+                        ${form.priority === p.key
+                          ? p.key === 'urgent'
+                            ? 'border-red-500 bg-red-50 text-red-700'
+                            : 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                    >
+                      {p.key === 'urgent' ? '🔥 ' : ''}{p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <SectionHeader icon={StickyNote} title="Notes" hint="Optional" />
+                <textarea
+                  className="input resize-none"
+                  rows={4}
+                  placeholder="Any additional notes…"
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
             </div>
-          </div>
-
-          <hr className="border-gray-100" />
-
-          <div className="space-y-2.5">
-            <SectionHeader icon={Flag} title="Priority" />
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { key: 'normal', label: 'Normal' },
-                { key: 'urgent', label: 'Urgent' },
-              ].map(p => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, priority: p.key }))}
-                  className={`py-2.5 rounded-xl text-sm font-semibold border transition-all active:scale-95
-                    ${form.priority === p.key
-                      ? p.key === 'urgent'
-                        ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-                >
-                  {p.key === 'urgent' ? '🔥 ' : ''}{p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            <SectionHeader icon={StickyNote} title="Notes" hint="Optional" />
-            <textarea
-              className="input resize-none"
-              rows={2}
-              placeholder="Any additional notes…"
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-            />
           </div>
 
           {selectedSummary.length > 0 && (

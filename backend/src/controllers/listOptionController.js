@@ -9,7 +9,7 @@ const getOptions = async (req, res) => {
     const { type } = req.query;
     if (!ALLOWED_TYPES.includes(type)) return sendError(res, 'Invalid list type');
 
-    const options = await ListOption.find({ type }).sort({ value: 1 }).maxTimeMS(8000);
+    const options = await ListOption.find({ type }).sort({ value: 1 }).maxTimeMS(8000).lean();
     return sendSuccess(res, 'Options fetched', options);
   } catch (err) {
     return sendError(res, err.message, 500);

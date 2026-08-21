@@ -60,8 +60,11 @@ const getDies = async (req, res) => {
         { dieId: { $regex: search, $options: 'i' } },
       ];
     }
-    // Month filter — filters by createdAt within the given month/year
-    if (month && year) {
+    // Month filter — filters by createdAt within the given month/year.
+    // Skipped for 'active'/'in_transit': those are ongoing work and shouldn't
+    // disappear from view just because they weren't created in the selected month.
+    const isLiveStatus = status === 'active' || status === 'in_transit';
+    if (month && year && !isLiveStatus) {
       const start = new Date(Number(year), Number(month) - 1, 1);
       const end = new Date(Number(year), Number(month), 1);
       query.createdAt = { $gte: start, $lt: end };
@@ -361,9 +364,12 @@ const getStats = async (req, res) => {
       dateQuery.createdAt = { $gte: start, $lt: end };
     }
 
+    // Active / in-transit dies are ongoing work — they shouldn't vanish just because
+    // you're viewing a different month than the one they were created in. Only apply
+    // the month filter to statuses where "when" is meaningful (dispatched/completed).
     const [active, inTransit, inMoulding, completed] = await Promise.all([
-      Die.find({ status: 'active', ...dateQuery }),
-      Die.countDocuments({ status: 'in_transit', ...dateQuery }),
+      Die.find({ status: 'active', isDeleted: { $ne: true } }),
+      Die.countDocuments({ status: 'in_transit', isDeleted: { $ne: true } }),
       Die.countDocuments({ status: 'in_moulding', ...dateQuery }),
       Die.countDocuments({ status: 'completed', ...dateQuery }),
     ]);
