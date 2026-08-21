@@ -133,8 +133,8 @@ export const ManagedOptionList = ({ type, value, onChange, multi = false, canMan
   };
 
   const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!newValue.trim()) return;
+    e?.preventDefault?.();
+    if (!newValue.trim() || adding) return;
     setAdding(true);
     try {
       const { data } = await listOptionAPI.add(type, newValue.trim());
@@ -195,17 +195,20 @@ export const ManagedOptionList = ({ type, value, onChange, multi = false, canMan
         </div>
       )}
       {canManage && (
-        <form onSubmit={handleAdd} className="flex gap-1.5">
+        <div className="flex gap-1.5">
           <input
             className="input text-xs py-1.5 flex-1"
             placeholder="Add new option…"
             value={newValue}
             onChange={e => setNewValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+            }}
           />
-          <button type="submit" className="btn btn-ghost text-xs px-2.5" disabled={adding || !newValue.trim()}>
+          <button type="button" onClick={() => handleAdd()} className="btn btn-ghost text-xs px-2.5" disabled={adding || !newValue.trim()}>
             {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
           </button>
-        </form>
+        </div>
       )}
     </div>
   );
